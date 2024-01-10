@@ -1,5 +1,4 @@
-const mongoose = require('mongoose');
-
+const mongoose = require("mongoose");
 
 const propertySchema = new mongoose.Schema({
   type: {
@@ -26,17 +25,14 @@ const propertySchema = new mongoose.Schema({
     {
       lang: Number,
       lat: Number,
-      },
-     
+    },
   ],
   name: {
     type: String,
-    required:  [true, 'Name is required.'],
-    unique: [true, 'Name should be unique'],
-    },
-  id: String
+    required: [true, "Name is required."],
+    unique: [true, "Name should be unique"],
+  },
 });
-
 
 const Property = mongoose.model("properties", propertySchema);
 
