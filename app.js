@@ -1,11 +1,10 @@
 require("dotenv").config();
 const express = require("express");
-const app = express();
 const cors = require("cors");
 const mongoose = require("mongoose");
 const Property = require("./models/property");
 const bodyParser = require("body-parser");
-
+const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
@@ -21,24 +20,31 @@ function validateProperty(req, res, next) {
   const { type, location, area, name } = req.body;
 
   if (!type || !location || !area || !name) {
-    return res
-      .status(400)
-      .json({ error: "All required fields must be provided" });
+    return res.status(400).json({
+      status: "Validation error",
+      error: "All required fields must be provided",
+    });
   }
 
   const { country, city, address } = location;
   if (!country || !city || !address) {
-    return res.status(400).json({ error: "Location details are incomplete" });
+    return res.status(400).json({
+      status: "Validation error",
+      error: "Location details are incomplete",
+    });
   }
 
-  if (area.length < 5 || area.length > 5) {
-    return res
-      .status(400)
-      .json({ error: "The area should have only five ponts!" });
+  if (area.length < 3) {
+    return res.status(400).json({
+      status: "Validation error",
+      error: "The area should not have less then 3 points!",
+    });
   }
 
   if (!["house", "shop", "land"].includes(type)) {
-    return res.status(400).json({ error: "Invalid value for 'type'" });
+    return res
+      .status(400)
+      .json({ status: "Validation error", error: "Invalid value for 'type'" });
   }
 
   next();
@@ -47,33 +53,28 @@ function validateProperty(req, res, next) {
 app.get("/property", async (req, res) => {
   try {
     const properties = await Property.find();
-    if (properties.length === 0) {
-      return res.json({ message: "No property in the database" });
-    }
+
     res.status(200).json({
-      message: "Properties gets successfully!",
       length: properties.length,
       properties,
     });
   } catch (error) {
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ status: "error", error: "Internal Server Error" });
   }
 });
 
 app.get("/property/:id", async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404);
+    }
     const property = await Property.findOne({ _id: req.params.id });
-    if (!property) {
-      return res.status(404).json({ error: "Property not found" });
-    }
-    return res
-      .status(200)
-      .json({ message: "Property gets successfully!", property });
+    // if (property === null) {
+    //   res.status(404).json({message:"id not correct"})
+    // }
+    return res.status(200).json(property);
   } catch (error) {
-    if (error.message.includes("Cast to ObjectId failed ")) {
-      return res.status(404).json({ error: "No property found with that id!" });
-    }
-    res.status(500).json({ error: error });
+    res.status(500).json({ status: "error", error: error });
   }
 });
 
@@ -81,48 +82,52 @@ app.post("/property", validateProperty, cors(), async (req, res) => {
   try {
     const newProperty = new Property(req.body);
     await newProperty.save();
-    res
-      .status(201)
-      .json({ message: "Property added successfully", newProperty });
+    res.status(200).json(newProperty);
   } catch (error) {
     if (error.code === 11000 && error.keyPattern && error.keyPattern.name) {
-      return res.status(400).json({ error: "Property name must be unique!" });
+      return res
+        .status(400)
+        .json({ status: "error", error: "Property name must be unique!" });
     }
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ status: "error", error: "Internal Server Error" });
   }
 });
 
 app.put("/property/:id", validateProperty, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404);
+    }
     const property = await Property.findOneAndUpdate(
       { _id: req.params.id },
       req.body,
       { new: true }
     );
-
-    res
-      .status(200)
-      .json({ message: "Property edited successfully!", property });
+    res.status(200).json(property);
   } catch (error) {
     if (error.code === 11000 && error.keyPattern && error.keyPattern.name) {
-      return res.status(400).json({ error: "Property name must be unique!" });
+      return res
+        .status(400)
+        .json({ status: "error", error: "Property name must be unique!" });
     }
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ status: "error", error: "Internal Server Error" });
   }
 });
 
 app.delete("/property/:id", async (req, res) => {
   try {
-    const property = await Property.findOneAndDelete({ _id: req.params.id });
-    if (!property) {
-      return res.status(404).json({ error: "Property not found" });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404);
     }
-    res.status(200).json("Property deleted succsefully");
+    await Property.findOneAndDelete({ _id: req.params.id });
+    res.status(201);
   } catch (error) {
     if (error.message.includes("Cast to ObjectId failed ")) {
-      return res.status(404).json({ error: "No property found with that id!" });
+      return res
+        .status(404)
+        .json({ status: "error", error: "No property found with that id!" });
     }
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ status: "error", error: "Internal Server Error" });
   }
 });
 
@@ -139,21 +144,21 @@ function calculateArea(points) {
 
 app.get("/property/:id/area", async (req, res) => {
   try {
-    const property = await Property.findOne({ _id: req.params.id });
-    if (!property) {
-      return res.status(404).json({ error: "Property not found" });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json("id not valid");
     }
+    const property = await Property.findOne({ _id: req.params.id });
+    // if (!property) {
+    //   return res.status(404);
+    // }
     const area = calculateArea(property.area);
     res.status(200).json({ area });
   } catch (error) {
-    if (error.message.includes("Cast to ObjectId failed ")) {
-      return res.status(404).json({ error: "No property found with that id!" });
-    }
-    res.status(500).json({ error: error });
+    res.status(500).json({ status: "error", error: error });
   }
 });
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`APP IS LISTENING ON PORT ${PORT}!`);
 });
